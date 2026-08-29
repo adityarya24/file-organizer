@@ -12,8 +12,8 @@ from typing import Any
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.json"
 
 
-def get_windows_shell_folder(folder_name: str, fallback_name: str) -> Path:
-    """Dynamically resolve Windows Shell Folder paths (supporting OneDrive redirection)."""
+def get_default_downloads_dir() -> Path:
+    """Dynamically resolve the Downloads folder across Windows, macOS, and Linux."""
     if sys.platform == "win32":
         try:
             import winreg
@@ -21,14 +21,52 @@ def get_windows_shell_folder(folder_name: str, fallback_name: str) -> Path:
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
             )
-            raw_path, _ = winreg.QueryValueEx(key, folder_name)
+            raw_path, _ = winreg.QueryValueEx(key, "{374DE290-123F-4565-9164-39C4925E467B}")
             expanded = os.path.expandvars(raw_path)
             if os.path.isdir(expanded):
                 return Path(expanded).resolve()
         except Exception:
             pass
-    fallback = Path.home() / fallback_name
-    return fallback.resolve()
+    return (Path.home() / "Downloads").resolve()
+
+
+def get_default_desktop_dir() -> Path:
+    """Dynamically resolve the Desktop folder (supporting Windows OneDrive redirection)."""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            )
+            raw_path, _ = winreg.QueryValueEx(key, "Desktop")
+            expanded = os.path.expandvars(raw_path)
+            if os.path.isdir(expanded):
+                return Path(expanded).resolve()
+        except Exception:
+            pass
+    return (Path.home() / "Desktop").resolve()
+
+
+def resolve_path_string(raw: str, fallback_type: str = "downloads") -> Path:
+    """Expand ~, %VARS%, and resolve auto aliases."""
+    cleaned = raw.strip()
+    upper = cleaned.upper()
+    if upper in {"AUTO:DOWNLOADS", "AUTO_DOWNLOADS", "DOWNLOADS", "~/DOWNLOADS", "%USERPROFILE%\\DOWNLOADS"}:
+        return get_default_downloads_dir()
+    if upper in {"AUTO:DESKTOP", "AUTO_DESKTOP", "DESKTOP", "~/DESKTOP", "%USERPROFILE%\\DESKTOP"}:
+        return get_default_desktop_dir()
+    
+    expanded = os.path.expanduser(os.path.expandvars(cleaned))
+    p = Path(expanded).resolve()
+    
+    # If the path is standard ~/Desktop but system uses redirected OneDrive Desktop
+    if fallback_type == "desktop" and p == (Path.home() / "Desktop").resolve():
+        return get_default_desktop_dir()
+    if fallback_type == "downloads" and p == (Path.home() / "Downloads").resolve():
+        return get_default_downloads_dir()
+    
+    return p
 
 
 DEFAULT_CATEGORIES: dict[str, list[str]] = {
@@ -106,11 +144,10 @@ class OrganizerConfig:
 
 
 def load_config(config_path: Path | None = None) -> OrganizerConfig:
-    """Load configuration from JSON or use dynamically detected Windows folders."""
+    """Load configuration from JSON or use dynamically detected folders."""
     target_path = config_path or DEFAULT_CONFIG_PATH
-    real_desktop = get_windows_shell_folder("Desktop", "Desktop")
-    real_downloads = get_windows_shell_folder("{374DE290-123F-4565-9164-39C4925E467B}", "Downloads")
-    default_desktop = Path.home() / "Desktop"
+    real_desktop = get_default_desktop_dir()
+    real_downloads = get_default_downloads_dir()
 
     if target_path.is_file():
         try:
@@ -123,7 +160,6 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
 
     watch_dirs_raw = raw.get("watch_dirs")
     if not watch_dirs_raw:
-        # Dynamically build default directories
         watch_dirs = [
             WatchFolderConfig(
                 path=real_downloads,
@@ -140,36 +176,28 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
                 ignore_extensions=[".lnk", ".url", ".ini"]
             )
         ]
-        # Also watch standard Desktop if different from redirected one
-        if default_desktop.is_dir() and default_desktop.resolve() != real_desktop:
-            watch_dirs.append(
-                WatchFolderConfig(
-                    path=default_desktop.resolve(),
-                    mode="desktop_cleanup",
-                    target_base=default_desktop.resolve() / "Organized",
-                    enabled=True,
-                    ignore_extensions=[".lnk", ".url", ".ini"]
-                )
-            )
     else:
         watch_dirs = []
         for entry in watch_dirs_raw:
             if not entry.get("enabled", True):
                 continue
-            raw_p = entry["path"]
-            # Auto-substitute Desktop with real active desktop if configured as standard desktop
-            p = Path(os.path.expandvars(raw_p)).resolve()
-            if p == default_desktop.resolve() and real_desktop != default_desktop.resolve():
-                p = real_desktop
-
-            raw_t = entry.get("target_base", entry["path"])
-            t = Path(os.path.expandvars(raw_t)).resolve()
-            if t == (default_desktop / "Organized").resolve() and real_desktop != default_desktop.resolve():
-                t = real_desktop / "Organized"
+            mode = entry.get("mode", "categorized_subfolders")
+            fallback = "desktop" if mode == "desktop_cleanup" else "downloads"
+            
+            p = resolve_path_string(entry["path"], fallback_type=fallback)
+            raw_target = entry.get("target_base", entry["path"])
+            
+            if mode == "desktop_cleanup":
+                if raw_target.upper() in {"AUTO:DESKTOP", "AUTO_DESKTOP", "DESKTOP"} or raw_target.endswith("Desktop"):
+                    t = p / "Organized"
+                else:
+                    t = resolve_path_string(raw_target, fallback_type=fallback)
+            else:
+                t = resolve_path_string(raw_target, fallback_type=fallback)
 
             watch_dirs.append(WatchFolderConfig(
                 path=p,
-                mode=entry.get("mode", "categorized_subfolders"),
+                mode=mode,
                 target_base=t,
                 enabled=True,
                 ignore_extensions=[ext.lower() for ext in entry.get("ignore_extensions", [])]
@@ -192,25 +220,22 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
 
 
 def save_default_config(target_path: Path | None = None) -> Path:
-    """Write default configuration file to disk with resolved active paths."""
+    """Write generic default configuration file to disk."""
     dest = target_path or DEFAULT_CONFIG_PATH
-    real_desktop = get_windows_shell_folder("Desktop", "Desktop")
-    real_downloads = get_windows_shell_folder("{374DE290-123F-4565-9164-39C4925E467B}", "Downloads")
-
     default_payload = {
         "watch_dirs": [
             {
-                "path": str(real_downloads),
+                "path": "AUTO:DOWNLOADS",
                 "mode": "categorized_subfolders",
-                "target_base": str(real_downloads),
-                "enabled": True,
+                "target_base": "AUTO:DOWNLOADS",
+                "enabled": true,
                 "ignore_extensions": []
             },
             {
-                "path": str(real_desktop),
+                "path": "AUTO:DESKTOP",
                 "mode": "desktop_cleanup",
-                "target_base": str(real_desktop / "Organized"),
-                "enabled": True,
+                "target_base": "AUTO:DESKTOP",
+                "enabled": true,
                 "ignore_extensions": [".lnk", ".url", ".ini"]
             }
         ],

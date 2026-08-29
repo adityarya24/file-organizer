@@ -1,2 +1,11 @@
 Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run chr(34) & "C:\Python314\python.exe" & chr(34) & " " & chr(34) & "C:\Users\ADITYA\tools\file-organizer\organizer.py" & chr(34) & " --watch", 0, False
+Set FSO = CreateObject("Scripting.FileSystemObject")
+scriptDir = FSO.GetParentFolderName(WScript.ScriptFullName)
+
+On Error Resume Next
+WshShell.Run "pythonw """ & scriptDir & "\organizer.py"" --watch", 0, False
+If Err.Number <> 0 Then
+    Err.Clear
+    WshShell.Run "python """ & scriptDir & "\organizer.py"" --watch", 0, False
+End If
+On Error GoTo 0

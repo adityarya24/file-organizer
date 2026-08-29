@@ -1,71 +1,146 @@
-# 📁 Smart File Organizer for Windows (Downloads & Desktop)
+<div align="center">
 
-A robust, background-capable, zero-dependency Python tool that automatically organizes files by type in `Downloads` and cleans clutter from `Desktop`.
+# 📁 Smart File Organizer
+
+**A lightweight, zero-dependency, background-capable file organizer for Downloads & Desktop.**  
+*Auto-categorize downloads, reduce desktop clutter, protect active downloads, and rollback any change with instant undo.*
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/downloads/)
+[![Platform: Windows / macOS / Linux](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)]()
+[![Zero Dependencies](https://img.shields.io/badge/Dependencies-Zero-green.svg)]()
+
+</div>
 
 ---
 
-## ⚡ Quick Commands
+## ✨ Features
 
-Run from command prompt or PowerShell in `C:\Users\ADITYA\tools\file-organizer`:
+- 🚀 **Zero Dependencies**: Pure Python standard library (`pathlib`, `shutil`, `winreg`, `os.scandir`). No heavy frameworks or complex wheels.
+- 📂 **Multi-Directory Management**:
+  - **Downloads**: Categorizes incoming files into organized subfolders (`Documents`, `Images`, `Spreadsheets`, `Installers`, `Archives`, `Videos`, `Audio`, `Code_and_Data`, etc.).
+  - **Desktop Clutter Cleanup**: Cleans loose desktop files into `Desktop/Organized/<Category>` while keeping your desktop app shortcuts (`.lnk`), URLs (`.url`), and system files (`desktop.ini`) **safe and untouched**.
+- ☁️ **Windows OneDrive Redirection Aware**: Automatically resolves dynamic Windows Shell Folders and redirected OneDrive Desktop paths directly from the Windows Registry.
+- 🛡️ **Active Download Protection**:
+  - Automatically ignores in-progress browser downloads (`.crdownload`, `.part`, `.partial`, `.tmp`, `.~tmp`, `.download`, `.aria2`, `.lock`).
+  - Verifies file size stability and lock release before executing any file movement.
+- 🔄 **Collision-Safe (No Overwrites)**:
+  - If `statement.pdf` already exists in destination, automatically generates `statement (1).pdf`, `statement (2).pdf` instead of overwriting.
+- ⏪ **Transaction Logs & Instant Undo**:
+  - Every single file movement is logged to `history.jsonl` with timestamps and byte sizes.
+  - Run `--undo` at any time to rollback any number of operations to their exact original locations.
+- 👁️ **Dry-Run Mode**:
+  - Preview exactly what files will be moved where with `--dry-run` before applying changes.
+- 🔕 **Silent Background Watcher & Windows Startup**:
+  - Runs in the background with minimal CPU usage (~0%).
+  - One-command integration with Windows Startup (`--install-startup`) for automatic background launch on PC boot.
 
-```powershell
-# 1. Preview changes without touching files (Simulate)
+---
+
+## ⚡ Quick Start
+
+### 1. Clone & Run
+```bash
+git clone https://github.com/adityarya24/file-organizer.git
+cd file-organizer
+```
+
+### 2. Basic Commands
+```bash
+# 1. Preview changes safely without moving anything
 python organizer.py --dry-run
 
-# 2. Organize all loose files right now
+# 2. Run a one-time clean-up across Downloads and Desktop
 python organizer.py --organize
 
-# 3. Start live background watcher (auto-organizes new downloads as they finish)
+# 3. Start the live background watcher
 python organizer.py --watch
 
-# 4. Undo last moves (e.g. undo last 20 moves)
-python organizer.py --undo 20
+# 4. Undo the last 10 file movements
+python organizer.py --undo 10
 
-# 5. Check status, categories, and recent history
+# 5. Check status, watched directories, and recent move history
 python organizer.py --status
+```
 
-# 6. Enable auto-start on Windows Boot (silent background service)
+---
+
+## 🖥️ Windows Startup Integration (Silent Background Service)
+
+Enable the organizer to run quietly in the background on system boot:
+
+```powershell
+# Install auto-start to Windows Startup folder
 python organizer.py --install-startup
 
-# 7. Disable auto-start on Windows Boot
+# Remove auto-start from Windows Startup folder
 python organizer.py --uninstall-startup
 ```
 
 ---
 
-## 🛡️ Safety & Core Features
+## ⚙️ Configuration (`config.json`)
 
-1. **Active Download Protection**:
-   - Never touches files currently downloading (`.crdownload`, `.tmp`, `.partial`, `.part`, `.~tmp`, `.download`).
-   - Checks file size stability and locks before moving.
+The organizer automatically creates and maintains a `config.json` file. You can customize paths, categories, extensions, and polling frequencies without modifying code:
 
-2. **No Overwrites / Safe Collisions**:
-   - If `report.pdf` already exists in `Downloads/Documents/`, it renames automatically to `report (1).pdf`, `report (2).pdf`.
-
-3. **Desktop Shortcut Protection**:
-   - Preserves all `.lnk` (app shortcuts), `.url` (browser links), and system files (`desktop.ini`).
-   - Cleans loose files safely into `Desktop\Organized\<Category>`.
-
-4. **Complete Rollback / Undo**:
-   - Every single file movement is logged to `history.jsonl`.
-   - Run `--undo` at any time to restore files to their exact original locations.
-
-5. **Silent Background Execution on Windows**:
-   - `start_background.vbs` can run the watcher without opening any console window.
-   - `--install-startup` adds it to your Windows Startup folder seamlessly.
+```json
+{
+  "watch_dirs": [
+    {
+      "path": "AUTO:DOWNLOADS",
+      "mode": "categorized_subfolders",
+      "target_base": "AUTO:DOWNLOADS",
+      "enabled": true,
+      "ignore_extensions": []
+    },
+    {
+      "path": "AUTO:DESKTOP",
+      "mode": "desktop_cleanup",
+      "target_base": "AUTO:DESKTOP",
+      "enabled": true,
+      "ignore_extensions": [".lnk", ".url", ".ini"]
+    }
+  ],
+  "categories": {
+    "Documents": [".pdf", ".doc", ".docx", ".txt", ".rtf", ".odt", ".epub", ".pages", ".md", ".tex"],
+    "Spreadsheets": [".xlsx", ".xls", ".csv", ".tsv", ".ods", ".numbers"],
+    "Presentations": [".ppt", ".pptx", ".key", ".odp"],
+    "Images": [".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp", ".tiff", ".ico", ".heic", ".psd"],
+    "Videos": [".mp4", ".mkv", ".mov", ".avi", ".webm", ".flv", ".wmv", ".m4v", ".ts"],
+    "Audio": [".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".wma", ".opus"],
+    "Archives": [".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz", ".iso", ".dmg"],
+    "Installers": [".exe", ".msi", ".bat", ".cmd", ".ps1", ".apk", ".appx", ".msix", ".deb", ".rpm"],
+    "Code_and_Data": [".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".json", ".sql", ".db", ".sqlite", ".pine", ".c", ".cpp", ".rs", ".go", ".java", ".ipynb"],
+    "Torrents": [".torrent"]
+  },
+  "temporary_extensions": [
+    ".crdownload", ".tmp", ".partial", ".part", ".~tmp", ".download", ".aria2", ".lock"
+  ],
+  "ignored_names": [
+    "desktop.ini", "Thumbs.db", ".DS_Store", "Organized", "history.jsonl"
+  ],
+  "settle_delay_seconds": 3.0,
+  "poll_interval_seconds": 2.0
+}
+```
 
 ---
 
-## 📂 Category Mappings (`config.json`)
+## 🛠️ CLI Reference
 
-* **Documents**: `.pdf`, `.doc`, `.docx`, `.txt`, `.rtf`, `.odt`, `.epub`, `.pages`, `.md`, `.tex`
-* **Spreadsheets**: `.xlsx`, `.xls`, `.csv`, `.tsv`, `.ods`, `.numbers`
-* **Presentations**: `.ppt`, `.pptx`, `.key`, `.odp`
-* **Images**: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`, `.svg`, `.bmp`, `.tiff`, `.ico`, `.heic`, `.psd`, `.ai`
-* **Videos**: `.mp4`, `.mkv`, `.mov`, `.avi`, `.webm`, `.flv`, `.wmv`, `.m4v`, `.ts`
-* **Audio**: `.mp3`, `.wav`, `.m4a`, `.flac`, `.aac`, `.ogg`, `.wma`, `.opus`
-* **Archives**: `.zip`, `.rar`, `.7z`, `.tar`, `.gz`, `.bz2`, `.xz`, `.iso`, `.dmg`
-* **Installers**: `.exe`, `.msi`, `.bat`, `.cmd`, `.ps1`, `.apk`, `.appx`, `.msix`
-* **Code & Data**: `.py`, `.js`, `.ts`, `.html`, `.css`, `.json`, `.sql`, `.db`, `.sqlite`, `.c`, `.cpp`, `.rs`, `.go`, `.java`, `.ipynb`
-* **Torrents**: `.torrent`
-* **Others**: Any unmatched extension.
+| Flag | Description |
+| :--- | :--- |
+| `--organize` | Execute a one-time clean-up pass across all watched folders. |
+| `--dry-run` | Simulate file organization and print actions without moving files. |
+| `--watch` | Start continuous real-time directory watcher. |
+| `--undo [N]` | Rollback the last `N` operations (default: 10). |
+| `--status` | Show active directories, category counts, and recent transactions. |
+| `--init-config` | Reset or generate default `config.json`. |
+| `--install-startup` | Register silent watcher in Windows Startup. |
+| `--uninstall-startup` | Remove watcher from Windows Startup. |
+
+---
+
+## 📄 License
+
+Distributed under the [MIT License](LICENSE). Free for personal and commercial use.

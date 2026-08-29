@@ -1,16 +1,16 @@
 {
   "watch_dirs": [
     {
-      "path": "C:\\Users\\ADITYA\\Downloads",
+      "path": "AUTO:DOWNLOADS",
       "mode": "categorized_subfolders",
-      "target_base": "C:\\Users\\ADITYA\\Downloads",
+      "target_base": "AUTO:DOWNLOADS",
       "enabled": true,
       "ignore_extensions": []
     },
     {
-      "path": "C:\\Users\\ADITYA\\OneDrive - 婷建开发组\\Desktop",
+      "path": "AUTO:DESKTOP",
       "mode": "desktop_cleanup",
-      "target_base": "C:\\Users\\ADITYA\\OneDrive - 婷建开发组\\Desktop\\Organized",
+      "target_base": "AUTO:DESKTOP",
       "enabled": true,
       "ignore_extensions": [
         ".lnk",
