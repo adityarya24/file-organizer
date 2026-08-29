@@ -18,24 +18,30 @@ if str(SCRIPT_DIR) not in sys.path:
 
 LOG_FILE = SCRIPT_DIR / "watcher.log"
 
-# When running under pythonw.exe, sys.stdout and sys.stderr are None
-if sys.stdout is None:
+def safe_log(msg: str, console_only: bool = False) -> None:
+    """Safe logging that never crashes on detached Windows standard handles."""
     try:
-        sys.stdout = open(LOG_FILE, "a", encoding="utf-8", buffering=1)
+        if sys.stdout is not None:
+            print(msg, flush=True)
     except Exception:
-        sys.stdout = open(os.devnull, "w", encoding="utf-8")
-else:
+        pass
+
+    if not console_only:
+        try:
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+            with open(LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(f"[{timestamp}] {msg}\n")
+        except Exception:
+            pass
+
+# Ensure Windows stdout handles any unicode safely if present
+try:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
-
-if sys.stderr is None:
-    try:
-        sys.stderr = open(LOG_FILE, "a", encoding="utf-8", buffering=1)
-    except Exception:
-        sys.stderr = open(os.devnull, "w", encoding="utf-8")
-else:
     if hasattr(sys.stderr, "reconfigure"):
         sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
+except Exception:
+    pass
 
 from config import OrganizerConfig, WatchFolderConfig, load_config, save_default_config
 from history import HistoryManager
@@ -115,16 +121,16 @@ class FileOrganizer:
             "details": []
         }
 
-        print(f"\n==================================================")
-        print(f"  {'[DRY-RUN] ' if dry_run else ''}Organizing Files (Session: {session_id})")
-        print(f"==================================================")
+        safe_log(f"\n==================================================", console_only=True)
+        safe_log(f"  {'[DRY-RUN] ' if dry_run else ''}Organizing Files (Session: {session_id})", console_only=True)
+        safe_log(f"==================================================", console_only=True)
 
         for watch_cfg in self.config.watch_dirs:
             if not watch_cfg.path.exists():
-                print(f"[-] Directory not found: {watch_cfg.path}")
+                safe_log(f"[-] Directory not found: {watch_cfg.path}", console_only=True)
                 continue
 
-            print(f"\n[*] Scanning: {watch_cfg.path} (Mode: {watch_cfg.mode})")
+            safe_log(f"\n[*] Scanning: {watch_cfg.path} (Mode: {watch_cfg.mode})", console_only=True)
             entries = []
             try:
                 with os.scandir(watch_cfg.path) as it:
@@ -132,7 +138,7 @@ class FileOrganizer:
                         if entry.is_file():
                             entries.append(Path(entry.path))
             except Exception as exc:
-                print(f"[-] Error scanning {watch_cfg.path}: {exc}")
+                safe_log(f"[-] Error scanning {watch_cfg.path}: {exc}", console_only=True)
                 continue
 
             moved_in_dir = 0
@@ -143,29 +149,27 @@ class FileOrganizer:
                 if success:
                     moved_in_dir += 1
                     results["moved_count"] += 1
-                    print(f"  [+] {file_path.name} -> [{category}]")
+                    safe_log(f"  [+] {file_path.name} -> [{category}]")
                     results["details"].append({"file": file_path.name, "category": category, "msg": msg})
                 else:
                     results["skipped_count"] += 1
 
             if moved_in_dir == 0:
-                print("  (No loose files needed organizing)")
+                safe_log("  (No loose files needed organizing)", console_only=True)
 
-        print(f"\n--------------------------------------------------")
-        print(f"Summary: {results['moved_count']} files organized, {results['skipped_count']} skipped.")
-        print(f"==================================================\n")
+        safe_log(f"\n--------------------------------------------------", console_only=True)
+        safe_log(f"Summary: {results['moved_count']} files organized, {results['skipped_count']} skipped.", console_only=True)
+        safe_log(f"==================================================\n", console_only=True)
         return results
 
     def watch(self) -> None:
         """Continuous live watcher monitoring downloads and desktop."""
-        print(f"\n==================================================")
-        print(f"  Live Smart File Organizer (Background Watcher)")
-        print(f"==================================================")
-        print(f"Polling interval: {self.config.poll_interval_seconds}s | Settle delay: {self.config.settle_delay_seconds}s")
-        print(f"Watching folders:")
+        safe_log("==================================================")
+        safe_log("  Live Smart File Organizer (Background Watcher Started)")
+        safe_log("==================================================")
+        safe_log(f"Polling interval: {self.config.poll_interval_seconds}s | Settle delay: {self.config.settle_delay_seconds}s")
         for w in self.config.watch_dirs:
-            print(f"  - {w.path} -> {w.target_base} ({w.mode})")
-        print(f"\nPress Ctrl+C to stop.\n", flush=True)
+            safe_log(f"  - Watching: {w.path} -> {w.target_base} ({w.mode})")
 
         try:
             while True:
@@ -188,86 +192,83 @@ class FileOrganizer:
                                     file_path, watch_cfg, session_id=session_id, dry_run=False
                                 )
                                 if success:
-                                    timestamp = time.strftime("%H:%M:%S")
-                                    print(f"[{timestamp}] [+] {file_path.name} -> [{category}]", flush=True)
+                                    safe_log(f"[+] {file_path.name} -> [{category}]")
                     except Exception as exc:
-                        print(f"[-] Watch error: {exc}", flush=True)
+                        safe_log(f"[-] Watch error: {exc}")
 
                 time.sleep(self.config.poll_interval_seconds)
         except KeyboardInterrupt:
-            print("\nWatcher stopped by user.")
+            safe_log("Watcher stopped by user.")
+        except Exception as fatal_exc:
+            safe_log(f"Fatal watcher exception: {fatal_exc}")
 
     def undo(self, count: int = 10) -> None:
         """Undo the last N moves from history."""
-        print(f"\n[*] Reverting last {count} file movements...")
+        safe_log(f"\n[*] Reverting last {count} file movements...", console_only=True)
         results = self.history.undo_last_moves(count=count)
         if not results:
-            print("[-] No moves recorded in history to revert.")
+            safe_log("[-] No moves recorded in history to revert.", console_only=True)
             return
 
         reverted = 0
         for dest, orig, success, msg in results:
             if success:
                 reverted += 1
-                print(f"  [+] Restored: {Path(dest).name} -> {orig}")
+                safe_log(f"  [+] Restored: {Path(dest).name} -> {orig}", console_only=True)
             else:
-                print(f"  [-] Failed: {Path(dest).name} ({msg})")
+                safe_log(f"  [-] Failed: {Path(dest).name} ({msg})", console_only=True)
 
-        print(f"\n[OK] Undone {reverted}/{len(results)} operations.\n")
+        safe_log(f"\n[OK] Undone {reverted}/{len(results)} operations.\n", console_only=True)
 
     def status(self) -> None:
         """Show current configuration and recent history status."""
-        print(f"\n==================================================")
-        print(f"  File Organizer Status & Statistics")
-        print(f"==================================================")
-        print(f"Configured Watch Folders:")
+        safe_log(f"\n==================================================", console_only=True)
+        safe_log(f"  File Organizer Status & Statistics", console_only=True)
+        safe_log(f"==================================================", console_only=True)
+        safe_log(f"Configured Watch Folders:", console_only=True)
         for w in self.config.watch_dirs:
-            print(f"  - Path: {w.path}")
-            print(f"    Mode: {w.mode} | Target: {w.target_base}")
+            safe_log(f"  - Path: {w.path}", console_only=True)
+            safe_log(f"    Mode: {w.mode} | Target: {w.target_base}", console_only=True)
             if w.ignore_extensions:
-                print(f"    Ignored Exts: {', '.join(w.ignore_extensions)}")
+                safe_log(f"    Ignored Exts: {', '.join(w.ignore_extensions)}", console_only=True)
 
-        print(f"\nRegistered Categories ({len(self.config.categories)}):")
+        safe_log(f"\nRegistered Categories ({len(self.config.categories)}):", console_only=True)
         for cat, exts in self.config.categories.items():
-            print(f"  - {cat:16}: {', '.join(exts[:6])}{'...' if len(exts) > 6 else ''}")
+            safe_log(f"  - {cat:16}: {', '.join(exts[:6])}{'...' if len(exts) > 6 else ''}", console_only=True)
 
         recent = self.history.get_recent_records(limit=10)
-        print(f"\nRecent Move History (Last {len(recent)}):")
+        safe_log(f"\nRecent Move History (Last {len(recent)}):", console_only=True)
         if not recent:
-            print("  (No recent moves logged)")
+            safe_log("  (No recent moves logged)", console_only=True)
         else:
             for r in recent:
                 t = r.timestamp.split("T")[1][:8] if "T" in r.timestamp else r.timestamp
-                print(f"  - [{t}] {Path(r.src).name} -> [{r.category}]")
-        print(f"==================================================\n")
+                safe_log(f"  - [{t}] {Path(r.src).name} -> [{r.category}]", console_only=True)
+        safe_log(f"==================================================\n", console_only=True)
 
 
 def install_windows_startup() -> bool:
     """Create a Windows Startup VBS shortcut to launch the watcher on boot."""
     startup_dir = Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
     if not startup_dir.is_dir():
-        print(f"[-] Could not locate Windows Startup directory: {startup_dir}")
+        safe_log(f"[-] Could not locate Windows Startup directory: {startup_dir}", console_only=True)
         return False
 
     startup_link = startup_dir / "FileOrganizerWatcher.vbs"
     script_path = Path(__file__).resolve()
-    
-    # Try pythonw in Python installation dir
-    py_dir = Path(sys.executable).parent
-    pyw_candidate = py_dir / "pythonw.exe"
-    pyw_exec = str(pyw_candidate) if pyw_candidate.exists() else "pythonw.exe"
+    py_exec = sys.executable
 
     content = f'''Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run chr(34) & "{pyw_exec}" & chr(34) & " " & chr(34) & "{script_path}" & chr(34) & " --watch", 0, False
+WshShell.Run chr(34) & "{py_exec}" & chr(34) & " " & chr(34) & "{script_path}" & chr(34) & " --watch", 0, False
 '''
     try:
         startup_link.write_text(content, encoding="utf-8")
-        print(f"[OK] Successfully installed to Windows Startup:")
-        print(f"     {startup_link}")
-        print(f"     Watcher will now run automatically in the background on PC login.")
+        safe_log(f"[OK] Successfully installed to Windows Startup:", console_only=True)
+        safe_log(f"     {startup_link}", console_only=True)
+        safe_log(f"     Watcher will now run automatically in the background on PC login.", console_only=True)
         return True
     except Exception as exc:
-        print(f"[-] Failed to install startup script: {exc}")
+        safe_log(f"[-] Failed to install startup script: {exc}", console_only=True)
         return False
 
 
@@ -277,10 +278,10 @@ def uninstall_windows_startup() -> bool:
     startup_link = startup_dir / "FileOrganizerWatcher.vbs"
     if startup_link.exists():
         startup_link.unlink()
-        print(f"[OK] Removed File Organizer from Windows Startup ({startup_link})")
+        safe_log(f"[OK] Removed File Organizer from Windows Startup ({startup_link})", console_only=True)
         return True
     else:
-        print("[-] File Organizer was not in Windows Startup.")
+        safe_log("[-] File Organizer was not in Windows Startup.", console_only=True)
         return False
 
 
@@ -318,7 +319,7 @@ def main() -> None:
 
     if args.init_config:
         cfg_file = save_default_config()
-        print(f"[OK] Default configuration saved to: {cfg_file}")
+        safe_log(f"[OK] Default configuration saved to: {cfg_file}", console_only=True)
         return
 
     if args.install_startup:
@@ -341,7 +342,7 @@ def main() -> None:
         organizer.organize_all(dry_run=args.dry_run)
     else:
         organizer.status()
-        print("Use --dry-run to preview organization, --organize to run, or --watch to monitor live.")
+        safe_log("Use --dry-run to preview organization, --organize to run, or --watch to monitor live.", console_only=True)
 
 
 if __name__ == "__main__":
