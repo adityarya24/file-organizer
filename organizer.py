@@ -11,11 +11,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-# Ensure Windows stdout handles any unicode / emojis in filenames safely
+# Ensure Windows stdout handles any unicode / emojis in filenames safely and flushes immediately
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
 from config import OrganizerConfig, WatchFolderConfig, load_config, save_default_config
 from history import HistoryManager
@@ -145,7 +145,7 @@ class FileOrganizer:
         print(f"Watching folders:")
         for w in self.config.watch_dirs:
             print(f"  - {w.path} -> {w.target_base} ({w.mode})")
-        print(f"\nPress Ctrl+C to stop.\n")
+        print(f"\nPress Ctrl+C to stop.\n", flush=True)
 
         try:
             while True:
@@ -170,9 +170,9 @@ class FileOrganizer:
                                     )
                                     if success:
                                         timestamp = time.strftime("%H:%M:%S")
-                                        print(f"[{timestamp}] [+] {file_path.name} -> [{category}]")
+                                        print(f"[{timestamp}] [+] {file_path.name} -> [{category}]", flush=True)
                     except Exception as exc:
-                        print(f"[-] Watch error: {exc}")
+                        print(f"[-] Watch error: {exc}", flush=True)
 
                 time.sleep(self.config.poll_interval_seconds)
         except KeyboardInterrupt:

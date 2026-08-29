@@ -33,11 +33,11 @@ def should_ignore_file(
 
     # 4. Check if inside target destination directory (avoid recursive loops)
     try:
-        if watch_cfg.target_base in file_path.parents or file_path.parent == watch_cfg.target_base:
-            # If the file is directly or indirectly inside the organized output tree
-            rel = file_path.relative_to(watch_cfg.path)
-            # If relative path has more than 1 part and first part is a known category or "Organized"
-            if len(rel.parts) > 1 and (rel.parts[0] in config.categories or rel.parts[0] == "Organized"):
+        rel = file_path.relative_to(watch_cfg.path)
+        # If relative path is inside a category subfolder or "Organized"
+        if len(rel.parts) > 1:
+            first_dir = rel.parts[0]
+            if first_dir in config.categories or first_dir == "Organized" or first_dir == "Others":
                 return True
     except ValueError:
         pass
@@ -62,27 +62,29 @@ def is_file_ready_for_move(
 ) -> bool:
     """
     Check if the file has finished writing/downloading and is not locked by another process.
+    Fast-paths settled older files; only delays freshly modified files.
     """
     if not file_path.is_file():
         return False
 
-    # Check 1: File size stability
     try:
-        initial_size = file_path.stat().st_size
+        st = file_path.stat()
+        file_age = time.time() - st.st_mtime
     except OSError:
         return False
 
-    # Brief delay if file was just created
-    time.sleep(min(settle_delay, 1.0))
-
-    try:
-        current_size = file_path.stat().st_size
-        if initial_size != current_size:
+    # If file was modified within the last 5 seconds, verify size stability
+    if file_age < 5.0:
+        initial_size = st.st_size
+        time.sleep(min(settle_delay, 1.0))
+        try:
+            current_size = file_path.stat().st_size
+            if initial_size != current_size:
+                return False
+        except OSError:
             return False
-    except OSError:
-        return False
 
-    # Check 2: Try to open the file exclusively in append mode to confirm lock release
+    # Non-exclusive open check to confirm no lock
     try:
         with open(file_path, "r+b"):
             pass
