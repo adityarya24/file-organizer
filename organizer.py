@@ -11,6 +11,11 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+# Ensure script directory is in sys.path regardless of where it is launched from
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
 # Ensure Windows stdout handles any unicode / emojis in filenames safely and flushes immediately
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
@@ -163,14 +168,13 @@ class FileOrganizer:
                                 if should_ignore_file(file_path, self.config, watch_cfg):
                                     continue
 
-                                # Check readiness
-                                if is_file_ready_for_move(file_path, settle_delay=self.config.settle_delay_seconds):
-                                    success, category, msg = self.process_file(
-                                        file_path, watch_cfg, session_id=session_id, dry_run=False
-                                    )
-                                    if success:
-                                        timestamp = time.strftime("%H:%M:%S")
-                                        print(f"[{timestamp}] [+] {file_path.name} -> [{category}]", flush=True)
+                                # Check readiness & process
+                                success, category, msg = self.process_file(
+                                    file_path, watch_cfg, session_id=session_id, dry_run=False
+                                )
+                                if success:
+                                    timestamp = time.strftime("%H:%M:%S")
+                                    print(f"[{timestamp}] [+] {file_path.name} -> [{category}]", flush=True)
                     except Exception as exc:
                         print(f"[-] Watch error: {exc}", flush=True)
 
