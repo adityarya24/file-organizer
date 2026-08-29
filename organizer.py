@@ -230,11 +230,16 @@ def install_windows_startup() -> bool:
         print(f"[-] Could not locate Windows Startup directory: {startup_dir}")
         return False
 
-    vbs_path = Path(__file__).parent / "start_background.vbs"
     startup_link = startup_dir / "FileOrganizerWatcher.vbs"
+    script_path = Path(__file__).resolve()
+    
+    # Try pythonw in Python installation dir
+    py_dir = Path(sys.executable).parent
+    pyw_candidate = py_dir / "pythonw.exe"
+    pyw_exec = str(pyw_candidate) if pyw_candidate.exists() else "pythonw.exe"
 
     content = f'''Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "python \"{Path(__file__).resolve()}\" --watch", 0, False
+WshShell.Run "\"{pyw_exec}\" \"{script_path}\" --watch", 0, False
 '''
     try:
         startup_link.write_text(content, encoding="utf-8")
