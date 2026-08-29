@@ -7,6 +7,7 @@ import os
 import shutil
 import sys
 import time
+import traceback
 import uuid
 from pathlib import Path
 from typing import Any
@@ -199,8 +200,8 @@ class FileOrganizer:
                 time.sleep(self.config.poll_interval_seconds)
         except KeyboardInterrupt:
             safe_log("Watcher stopped by user.")
-        except Exception as fatal_exc:
-            safe_log(f"Fatal watcher exception: {fatal_exc}")
+        except BaseException as fatal_exc:
+            safe_log(f"Fatal watcher exception: {type(fatal_exc).__name__}: {fatal_exc}\n{traceback.format_exc()}")
 
     def undo(self, count: int = 10) -> None:
         """Undo the last N moves from history."""
