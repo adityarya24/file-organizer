@@ -8,9 +8,9 @@
       "ignore_extensions": []
     },
     {
-      "path": "C:\\Users\\ADITYA\\Desktop",
+      "path": "C:\\Users\\ADITYA\\OneDrive - 婷建开发组\\Desktop",
       "mode": "desktop_cleanup",
-      "target_base": "C:\\Users\\ADITYA\\Desktop\\Organized",
+      "target_base": "C:\\Users\\ADITYA\\OneDrive - 婷建开发组\\Desktop\\Organized",
       "enabled": true,
       "ignore_extensions": [
         ".lnk",
@@ -129,6 +129,7 @@
       ".sql",
       ".db",
       ".sqlite",
+      ".pine",
       ".c",
       ".cpp",
       ".h",

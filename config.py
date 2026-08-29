@@ -4,11 +4,32 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "config.json"
+
+
+def get_windows_shell_folder(folder_name: str, fallback_name: str) -> Path:
+    """Dynamically resolve Windows Shell Folder paths (supporting OneDrive redirection)."""
+    if sys.platform == "win32":
+        try:
+            import winreg
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders"
+            )
+            raw_path, _ = winreg.QueryValueEx(key, folder_name)
+            expanded = os.path.expandvars(raw_path)
+            if os.path.isdir(expanded):
+                return Path(expanded).resolve()
+        except Exception:
+            pass
+    fallback = Path.home() / fallback_name
+    return fallback.resolve()
+
 
 DEFAULT_CATEGORIES: dict[str, list[str]] = {
     "Documents": [
@@ -37,7 +58,7 @@ DEFAULT_CATEGORIES: dict[str, list[str]] = {
     ],
     "Code_and_Data": [
         ".py", ".js", ".ts", ".jsx", ".tsx", ".html", ".css", ".scss", ".json", ".xml", ".yaml", ".yml",
-        ".sql", ".db", ".sqlite", ".c", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".kt", ".swift",
+        ".sql", ".db", ".sqlite", ".pine", ".c", ".cpp", ".h", ".hpp", ".rs", ".go", ".java", ".kt", ".swift",
         ".sh", ".ipynb", ".parquet"
     ],
     "Torrents": [
@@ -74,7 +95,6 @@ class OrganizerConfig:
     extension_map: dict[str, str] = field(init=False)
 
     def __post_init__(self) -> None:
-        # Build fast lookup map: extension -> category
         ext_map: dict[str, str] = {}
         for category, exts in self.categories.items():
             for ext in exts:
@@ -86,11 +106,11 @@ class OrganizerConfig:
 
 
 def load_config(config_path: Path | None = None) -> OrganizerConfig:
-    """Load configuration from JSON or use sensible Windows defaults."""
+    """Load configuration from JSON or use dynamically detected Windows folders."""
     target_path = config_path or DEFAULT_CONFIG_PATH
-    user_home = Path.home()
-    default_downloads = user_home / "Downloads"
-    default_desktop = user_home / "Desktop"
+    real_desktop = get_windows_shell_folder("Desktop", "Desktop")
+    real_downloads = get_windows_shell_folder("{374DE290-123F-4565-9164-39C4925E467B}", "Downloads")
+    default_desktop = Path.home() / "Desktop"
 
     if target_path.is_file():
         try:
@@ -101,36 +121,59 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
     else:
         raw = {}
 
-    watch_dirs_raw = raw.get("watch_dirs", [
-        {
-            "path": str(default_downloads),
-            "mode": "categorized_subfolders",
-            "target_base": str(default_downloads),
-            "enabled": True,
-            "ignore_extensions": []
-        },
-        {
-            "path": str(default_desktop),
-            "mode": "desktop_cleanup",
-            "target_base": str(default_desktop / "Organized"),
-            "enabled": True,
-            "ignore_extensions": [".lnk", ".url", ".ini"]
-        }
-    ])
+    watch_dirs_raw = raw.get("watch_dirs")
+    if not watch_dirs_raw:
+        # Dynamically build default directories
+        watch_dirs = [
+            WatchFolderConfig(
+                path=real_downloads,
+                mode="categorized_subfolders",
+                target_base=real_downloads,
+                enabled=True,
+                ignore_extensions=[]
+            ),
+            WatchFolderConfig(
+                path=real_desktop,
+                mode="desktop_cleanup",
+                target_base=real_desktop / "Organized",
+                enabled=True,
+                ignore_extensions=[".lnk", ".url", ".ini"]
+            )
+        ]
+        # Also watch standard Desktop if different from redirected one
+        if default_desktop.is_dir() and default_desktop.resolve() != real_desktop:
+            watch_dirs.append(
+                WatchFolderConfig(
+                    path=default_desktop.resolve(),
+                    mode="desktop_cleanup",
+                    target_base=default_desktop.resolve() / "Organized",
+                    enabled=True,
+                    ignore_extensions=[".lnk", ".url", ".ini"]
+                )
+            )
+    else:
+        watch_dirs = []
+        for entry in watch_dirs_raw:
+            if not entry.get("enabled", True):
+                continue
+            raw_p = entry["path"]
+            # Auto-substitute Desktop with real active desktop if configured as standard desktop
+            p = Path(os.path.expandvars(raw_p)).resolve()
+            if p == default_desktop.resolve() and real_desktop != default_desktop.resolve():
+                p = real_desktop
 
-    watch_dirs: list[WatchFolderConfig] = []
-    for entry in watch_dirs_raw:
-        if not entry.get("enabled", True):
-            continue
-        p = Path(os.path.expandvars(entry["path"])).resolve()
-        t = Path(os.path.expandvars(entry.get("target_base", entry["path"]))).resolve()
-        watch_dirs.append(WatchFolderConfig(
-            path=p,
-            mode=entry.get("mode", "categorized_subfolders"),
-            target_base=t,
-            enabled=True,
-            ignore_extensions=[ext.lower() for ext in entry.get("ignore_extensions", [])]
-        ))
+            raw_t = entry.get("target_base", entry["path"])
+            t = Path(os.path.expandvars(raw_t)).resolve()
+            if t == (default_desktop / "Organized").resolve() and real_desktop != default_desktop.resolve():
+                t = real_desktop / "Organized"
+
+            watch_dirs.append(WatchFolderConfig(
+                path=p,
+                mode=entry.get("mode", "categorized_subfolders"),
+                target_base=t,
+                enabled=True,
+                ignore_extensions=[ext.lower() for ext in entry.get("ignore_extensions", [])]
+            ))
 
     categories = raw.get("categories", DEFAULT_CATEGORIES)
     temporary_extensions = [e.lower() for e in raw.get("temporary_extensions", DEFAULT_TEMPORARY_EXTENSIONS)]
@@ -138,7 +181,7 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
     settle_delay = float(raw.get("settle_delay_seconds", 3.0))
     poll_interval = float(raw.get("poll_interval_seconds", 2.0))
 
-    cfg = OrganizerConfig(
+    return OrganizerConfig(
         watch_dirs=watch_dirs,
         categories=categories,
         temporary_extensions=temporary_extensions,
@@ -146,26 +189,27 @@ def load_config(config_path: Path | None = None) -> OrganizerConfig:
         settle_delay_seconds=settle_delay,
         poll_interval_seconds=poll_interval,
     )
-    return cfg
 
 
 def save_default_config(target_path: Path | None = None) -> Path:
-    """Write default configuration file to disk."""
+    """Write default configuration file to disk with resolved active paths."""
     dest = target_path or DEFAULT_CONFIG_PATH
-    user_home = str(Path.home())
+    real_desktop = get_windows_shell_folder("Desktop", "Desktop")
+    real_downloads = get_windows_shell_folder("{374DE290-123F-4565-9164-39C4925E467B}", "Downloads")
+
     default_payload = {
         "watch_dirs": [
             {
-                "path": str(Path.home() / "Downloads"),
+                "path": str(real_downloads),
                 "mode": "categorized_subfolders",
-                "target_base": str(Path.home() / "Downloads"),
+                "target_base": str(real_downloads),
                 "enabled": True,
                 "ignore_extensions": []
             },
             {
-                "path": str(Path.home() / "Desktop"),
+                "path": str(real_desktop),
                 "mode": "desktop_cleanup",
-                "target_base": str(Path.home() / "Desktop" / "Organized"),
+                "target_base": str(real_desktop / "Organized"),
                 "enabled": True,
                 "ignore_extensions": [".lnk", ".url", ".ini"]
             }
@@ -177,5 +221,5 @@ def save_default_config(target_path: Path | None = None) -> Path:
         "poll_interval_seconds": 2.0
     }
     with open(dest, "w", encoding="utf-8") as f:
-        json.dump(default_payload, f, indent=2)
+        json.dump(default_payload, f, indent=2, ensure_ascii=False)
     return dest
