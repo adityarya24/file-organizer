@@ -11,16 +11,31 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-# Ensure script directory is in sys.path regardless of where it is launched from
+# Ensure script directory is in sys.path
 SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-# Ensure Windows stdout handles any unicode / emojis in filenames safely and flushes immediately
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
-if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
+LOG_FILE = SCRIPT_DIR / "watcher.log"
+
+# When running under pythonw.exe, sys.stdout and sys.stderr are None
+if sys.stdout is None:
+    try:
+        sys.stdout = open(LOG_FILE, "a", encoding="utf-8", buffering=1)
+    except Exception:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
+else:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
+
+if sys.stderr is None:
+    try:
+        sys.stderr = open(LOG_FILE, "a", encoding="utf-8", buffering=1)
+    except Exception:
+        sys.stderr = open(os.devnull, "w", encoding="utf-8")
+else:
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace", line_buffering=True)
 
 from config import OrganizerConfig, WatchFolderConfig, load_config, save_default_config
 from history import HistoryManager
@@ -243,7 +258,7 @@ def install_windows_startup() -> bool:
     pyw_exec = str(pyw_candidate) if pyw_candidate.exists() else "pythonw.exe"
 
     content = f'''Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "\"{pyw_exec}\" \"{script_path}\" --watch", 0, False
+WshShell.Run chr(34) & "{pyw_exec}" & chr(34) & " " & chr(34) & "{script_path}" & chr(34) & " --watch", 0, False
 '''
     try:
         startup_link.write_text(content, encoding="utf-8")

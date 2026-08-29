@@ -1,7 +1,2 @@
 Set WshShell = CreateObject("WScript.Shell")
-scriptDir = CreateObject("Scripting.FileSystemObject").GetParentFolderName(WScript.ScriptFullName)
-pythonExe = "C:\Python314\pythonw.exe"
-If Not CreateObject("Scripting.FileSystemObject").FileExists(pythonExe) Then
-    pythonExe = "pythonw.exe"
-End If
-WshShell.Run """" & pythonExe & """ """ & scriptDir & "\organizer.py"" --watch", 0, False
+WshShell.Run chr(34) & "C:\Python314\pythonw.exe" & chr(34) & " " & chr(34) & "C:\Users\ADITYA\tools\file-organizer\organizer.py" & chr(34) & " --watch", 0, False
