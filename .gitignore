@@ -1,0 +1,18 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local history & runtime logs
+history.jsonl
+*.log
+*.tmp
+*.lock
+
+# Environment & IDE
+.venv/
+env/
+venv/
+.idea/
+.vscode/
+*.swp

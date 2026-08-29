@@ -1,0 +1,168 @@
+{
+  "watch_dirs": [
+    {
+      "path": "C:\\Users\\ADITYA\\Downloads",
+      "mode": "categorized_subfolders",
+      "target_base": "C:\\Users\\ADITYA\\Downloads",
+      "enabled": true,
+      "ignore_extensions": []
+    },
+    {
+      "path": "C:\\Users\\ADITYA\\Desktop",
+      "mode": "desktop_cleanup",
+      "target_base": "C:\\Users\\ADITYA\\Desktop\\Organized",
+      "enabled": true,
+      "ignore_extensions": [
+        ".lnk",
+        ".url",
+        ".ini"
+      ]
+    }
+  ],
+  "categories": {
+    "Documents": [
+      ".pdf",
+      ".doc",
+      ".docx",
+      ".txt",
+      ".rtf",
+      ".odt",
+      ".epub",
+      ".pages",
+      ".md",
+      ".tex",
+      ".wpd"
+    ],
+    "Spreadsheets": [
+      ".xlsx",
+      ".xls",
+      ".csv",
+      ".tsv",
+      ".ods",
+      ".numbers"
+    ],
+    "Presentations": [
+      ".ppt",
+      ".pptx",
+      ".key",
+      ".odp"
+    ],
+    "Images": [
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".gif",
+      ".webp",
+      ".svg",
+      ".bmp",
+      ".tiff",
+      ".ico",
+      ".heic",
+      ".psd",
+      ".ai",
+      ".raw",
+      ".cr2",
+      ".nef"
+    ],
+    "Videos": [
+      ".mp4",
+      ".mkv",
+      ".mov",
+      ".avi",
+      ".webm",
+      ".flv",
+      ".wmv",
+      ".m4v",
+      ".3gp",
+      ".ts"
+    ],
+    "Audio": [
+      ".mp3",
+      ".wav",
+      ".m4a",
+      ".flac",
+      ".aac",
+      ".ogg",
+      ".wma",
+      ".opus",
+      ".mid",
+      ".midi"
+    ],
+    "Archives": [
+      ".zip",
+      ".rar",
+      ".7z",
+      ".tar",
+      ".gz",
+      ".bz2",
+      ".xz",
+      ".iso",
+      ".dmg",
+      ".tgz"
+    ],
+    "Installers": [
+      ".exe",
+      ".msi",
+      ".bat",
+      ".cmd",
+      ".ps1",
+      ".apk",
+      ".appx",
+      ".msix",
+      ".pkg",
+      ".deb",
+      ".rpm"
+    ],
+    "Code_and_Data": [
+      ".py",
+      ".js",
+      ".ts",
+      ".jsx",
+      ".tsx",
+      ".html",
+      ".css",
+      ".scss",
+      ".json",
+      ".xml",
+      ".yaml",
+      ".yml",
+      ".sql",
+      ".db",
+      ".sqlite",
+      ".c",
+      ".cpp",
+      ".h",
+      ".hpp",
+      ".rs",
+      ".go",
+      ".java",
+      ".kt",
+      ".swift",
+      ".sh",
+      ".ipynb",
+      ".parquet"
+    ],
+    "Torrents": [
+      ".torrent"
+    ]
+  },
+  "temporary_extensions": [
+    ".crdownload",
+    ".tmp",
+    ".partial",
+    ".part",
+    ".~tmp",
+    ".download",
+    ".aria2",
+    ".lock"
+  ],
+  "ignored_names": [
+    "desktop.ini",
+    "Thumbs.db",
+    ".DS_Store",
+    "Organized",
+    "history.jsonl"
+  ],
+  "settle_delay_seconds": 3.0,
+  "poll_interval_seconds": 2.0
+}
